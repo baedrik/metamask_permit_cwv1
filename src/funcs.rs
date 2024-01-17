@@ -51,7 +51,7 @@ pub fn validate<Permission: Permissions>(
         Some(sig_type) => {
             let lc = sig_type.to_lowercase();
             match lc.as_str() {
-                "metamask" => validate_metamask(
+                "metamask_personal_sign" => validate_metamask(
                     deps.api,
                     &permit.signature.signature,
                     &signed_permit,
