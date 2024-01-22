@@ -13,7 +13,7 @@ pub struct Permit<Permission: Permissions = TokenPermissions> {
     pub params: PermitParams<Permission>,
     pub signature: PermitSignature,
     /// used to make sure the verification method matches different types of signing
-    pub signature_type: Option<String>,
+    pub signature_type: Option<SignatureType>,
 }
 
 impl<Permission: Permissions> Permit<Permission> {
@@ -209,4 +209,14 @@ pub enum TokenPermissions {
     /// the address they want to share with via a SetWhitelistedApproval tx, and that
     /// address will view the data by creating their own permit with Owner permission
     Owner,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SignatureType {
+    /// the permit has been signed using metamask_personal_sign
+    MetamaskPersonalSign,
+    /// standard signing following SNIP-24 using SN wallet. This is default
+    /// processing when signature_type is null/None
+    Legacy,
 }

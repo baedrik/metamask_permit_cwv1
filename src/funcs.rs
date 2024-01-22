@@ -1,8 +1,8 @@
-use cosmwasm_std::{to_binary, Binary, CanonicalAddr, Deps, StdError, StdResult};
+use cosmwasm_std::{to_binary, Api, Binary, CanonicalAddr, Deps, StdError, StdResult};
 use ripemd::{Digest, Ripemd160};
 
 use crate::metamask::validate_metamask;
-use crate::{Permissions, Permit, RevokedPermits, SignedPermit};
+use crate::{Permissions, Permit, RevokedPermits, SignatureType, SignedPermit};
 use bech32::{ToBase32, Variant};
 use secret_toolkit::crypto::sha_256;
 
@@ -48,32 +48,26 @@ pub fn validate<Permission: Permissions>(
 
     let signed_permit = SignedPermit::from_params(&permit.params);
     let verified = match &permit.signature_type {
-        Some(sig_type) => {
-            let lc = sig_type.to_lowercase();
-            match lc.as_str() {
-                "metamask_personal_sign" => validate_metamask(
-                    deps.api,
-                    &permit.signature.signature,
-                    &signed_permit,
-                    pubkey,
-                )?,
-                _ => {
-                    return Err(StdError::generic_err(format!(
-                        "Unknown signature type: {}",
-                        lc
-                    )))
-                }
-            }
-        }
-        None => {
-            // Validate signature, reference: https://github.com/enigmampc/SecretNetwork/blob/f591ed0cb3af28608df3bf19d6cfb733cca48100/cosmwasm/packages/wasmi-runtime/src/crypto/secp256k1.rs#L49-L82
-            let signed_bytes = to_binary(&signed_permit)?;
-            let signed_bytes_hash = sha_256(signed_bytes.as_slice());
-
-            deps.api
-                .secp256k1_verify(&signed_bytes_hash, &permit.signature.signature.0, &pubkey.0)
-                .map_err(|err| StdError::generic_err(err.to_string()))?
-        }
+        Some(sig_type) => match sig_type {
+            SignatureType::MetamaskPersonalSign => validate_metamask(
+                deps.api,
+                &permit.signature.signature,
+                &signed_permit,
+                pubkey,
+            )?,
+            SignatureType::Legacy => validate_legacy(
+                deps.api,
+                &permit.signature.signature,
+                &signed_permit,
+                pubkey,
+            )?,
+        },
+        None => validate_legacy(
+            deps.api,
+            &permit.signature.signature,
+            &signed_permit,
+            pubkey,
+        )?,
     };
 
     if !verified {
@@ -83,6 +77,20 @@ pub fn validate<Permission: Permissions>(
     }
 
     Ok(account)
+}
+
+fn validate_legacy<Permission: Permissions>(
+    api: &dyn Api,
+    signature: &Binary,
+    signed_permit: &SignedPermit<Permission>,
+    pubkey: &Binary,
+) -> StdResult<bool> {
+    // Validate signature, reference: https://github.com/enigmampc/SecretNetwork/blob/f591ed0cb3af28608df3bf19d6cfb733cca48100/cosmwasm/packages/wasmi-runtime/src/crypto/secp256k1.rs#L49-L82
+    let signed_bytes = to_binary(signed_permit)?;
+    let signed_bytes_hash = sha_256(signed_bytes.as_slice());
+
+    api.secp256k1_verify(&signed_bytes_hash, &signature.0, &pubkey.0)
+        .map_err(|err| StdError::generic_err(err.to_string()))
 }
 
 pub fn pubkey_to_account(pubkey: &Binary) -> CanonicalAddr {
