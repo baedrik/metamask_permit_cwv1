@@ -99,6 +99,10 @@ pub fn pubkey_to_account(pubkey: &Binary) -> CanonicalAddr {
     CanonicalAddr(Binary(hasher.finalize().to_vec()))
 }
 
+pub fn get_signature_types() -> Vec<SignatureType> {
+    vec![SignatureType::Legacy, SignatureType::MetamaskPersonalSign]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
